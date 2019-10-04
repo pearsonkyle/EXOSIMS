@@ -9,6 +9,7 @@ try:
 except:
    import pickle
 from astropy.time import Time
+import time
 
 class SLSQPScheduler(SurveySimulation):
     """SLSQPScheduler
@@ -101,16 +102,32 @@ class SLSQPScheduler(SurveySimulation):
         if self.t0 is None:
             #1. find nominal background counts for all targets in list
             dMagint = 25.0 # this works fine for WFIRST
+            # if self.Izod == 'fZmin':
+            #     _, Cbs, Csps = self.OpticalSystem.Cp_Cb_Csp(self.TargetList, np.arange(self.TargetList.nStars),  #AT FZMIN
+            #             self.valfZmin, self.ZodiacalLight.fEZ0, dMagint, self.WAint, self.detmode)
+            # else:
             _, Cbs, Csps = self.OpticalSystem.Cp_Cb_Csp(self.TargetList, np.arange(self.TargetList.nStars),  
                     self.ZodiacalLight.fZ0, self.ZodiacalLight.fEZ0, dMagint, self.WAint, self.detmode)
 
+            
+
             #find baseline solution with dMagLim-based integration times
             #3.
+            # if self.Izod == 'fZmin':
+            #     t0 = self.OpticalSystem.calc_intTime(self.TargetList, np.arange(self.TargetList.nStars),   #AT FZMIN
+            #             self.valfZmin, self.ZodiacalLight.fEZ0, self.dMagint, self.WAint, self.detmode)
+            # else:
             t0 = self.OpticalSystem.calc_intTime(self.TargetList, np.arange(self.TargetList.nStars),  
                     self.ZodiacalLight.fZ0, self.ZodiacalLight.fEZ0, self.dMagint, self.WAint, self.detmode)
+
             #4.
+            # if self.Izod == 'fZmin':
+            #     comp0 = self.Completeness.comp_per_intTime(t0, self.TargetList, np.arange(self.TargetList.nStars), #AT FZMIN
+            #             self.valfZmin, self.ZodiacalLight.fEZ0, self.WAint, self.detmode, C_b=Cbs, C_sp=Csps)
+            # else:
             comp0 = self.Completeness.comp_per_intTime(t0, self.TargetList, np.arange(self.TargetList.nStars), 
                     self.ZodiacalLight.fZ0, self.ZodiacalLight.fEZ0, self.WAint, self.detmode, C_b=Cbs, C_sp=Csps)
+            
             
             #### 5. Formulating MIP to filter out stars we can't or don't want to reasonably observe
             solver = pywraplp.Solver('SolveIntegerProblem',pywraplp.Solver.CBC_MIXED_INTEGER_PROGRAMMING) # create solver instance
@@ -130,11 +147,15 @@ class SLSQPScheduler(SurveySimulation):
 
             #solver.EnableOutput()# this line enables output of the CBC MIXED INTEGER PROGRAM (Was hard to find don't delete)
             solver.SetTimeLimit(5*60*1000)#time limit for solver in milliseconds
+            BIPstart = time.time()
             cpres = solver.Solve() # actually solve MIP
+            BIPstop = time.time()
+            self.vprint('BIP Execution time: ' + str(BIPstop - BIPstart))
             x0 = np.array([x.solution_value() for x in xs]) # convert output solutions
 
             self.scomp0 = np.sum(comp0*x0) # calculate sum Comp from MIP
             self.t0 = t0 # assign calculated t0
+            self.vprint('BIP sum comp: ' + str(self.scomp0))
 
             #Observation num x0=0 @ dMagint=25 is 1501
             #Observation num x0=0 @ dMagint=30 is 1501...
@@ -146,9 +167,13 @@ class SLSQPScheduler(SurveySimulation):
                 return -np.sum(compstars*x)
             #Note: There is no way to seed an initial solution to minimize scalar 
             #0 and 1 are supposed to be the bounds on epsres. I could define upper bound to be 0.01, However defining the bounds to be 5 lets the solver converge
+            MSCALARstart = time.time()
             epsres = minimize_scalar(totCompfeps,method='bounded',bounds=[0,7], options={'disp': 3, 'xatol':self.ftol, 'maxiter': self.maxiter})  #adding ftol for initial seed. could be different ftol
                 #https://docs.scipy.org/doc/scipy/reference/optimize.minimize_scalar-bounded.html#optimize-minimize-scalar-bounded
+            MSCALARstop = time.time()
+            self.vprint('MSCALAR Execution time: ' + str(MSCALARstop - MSCALARstart))
             comp_epsmax,t_epsmax,x_epsmax = self.inttimesfeps(epsres['x'],Cbs.to('1/d').value, Csps.to('1/d').value)
+            self.vprint('MSCALAR sum comp: ' + str(np.sum(comp_epsmax*x_epsmax)))
             if np.sum(comp_epsmax*x_epsmax) > self.scomp0:
                 x0 = x_epsmax
                 self.scomp0 = np.sum(comp_epsmax*x_epsmax) 
@@ -178,13 +203,36 @@ class SLSQPScheduler(SurveySimulation):
             #bounds = [(0,maxIntTime.to(u.d).value) for i in np.arange(len(sInds))]
             #and use initguess[sInds], fZ[sInds], and self.t0[sInds].
             #There was no noticable performance improvement
+            SLSQPstart = time.time()
             ires = minimize(self.objfun, initguess, jac=self.objfun_deriv, args=(sInds,fZ), 
                     constraints=self.constraints, method='SLSQP', bounds=bounds, options={'maxiter':self.maxiter, 'ftol':self.ftol, 'disp': True}) #original method
+            SLSQPstop = time.time()
+            self.vprint('SLSQP Execution time: ' + str(SLSQPstop - SLSQPstart))
 
             assert ires['success'], "Initial time optimization failed."
 
             self.t0 = ires['x']*u.d
             self.scomp0 = -ires['fun']
+            self.vprint('SLSQP sum comp: ' + str(self.scomp0))
+
+            ##### Merely an example to squash reviewer 1
+            initguess = self.t0.value.copy()
+            bounds = [(0,0.99*maxIntTime.to(u.d).value) for i in np.arange(len(sInds))]
+            self.constraints = {'type':'ineq',
+                    'fun': lambda x: 0.99*self.maxTime.to(u.d).value - np.sum(x[x*u.d > 0.1*u.s]) - #maxTime less sum of intTimes
+                                     np.sum(x*u.d > 0.1*u.s).astype(float)*self.ohTimeTot.to(u.d).value, # sum of True -> goes to 1 x OHTime
+                    'jac':lambda x: np.ones(len(x))*-1.}
+            SLSQPstart = time.time()
+            ires = minimize(self.objfun, initguess, jac=self.objfun_deriv, args=(sInds,fZ), 
+                    constraints=self.constraints, method='SLSQP', bounds=bounds, options={'maxiter':self.maxiter, 'ftol':self.ftol, 'disp': True}) #original method
+            SLSQPstop = time.time()
+            self.vprint('SLSQP Execution time: ' + str(SLSQPstop - SLSQPstart))
+
+            assert ires['success'], "Initial time optimization failed."            
+            self.t02 = ires['x']*u.d
+            self.scomp02 = -ires['fun']
+            self.vprint('SLSQP sum comp2: ' + str(self.scomp02))
+            ############################################
 
             if cacheOptTimes:
                 with open(cachefname,'wb') as f:
