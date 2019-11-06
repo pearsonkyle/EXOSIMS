@@ -32,7 +32,7 @@ class SLSQPScheduler(SurveySimulation):
     """
 
     def __init__(self, cacheOptTimes=False, staticOptTimes=False, selectionMetric='maxC', Izod='current',
-        maxiter=60, ftol=1e-3, **specs): #fZminObs=False,
+        maxiter=60, ftol=1e-6, **specs): #fZminObs=False, # ftol=1e-3
         
         #initialize the prototype survey
         SurveySimulation.__init__(self, **specs)
@@ -155,7 +155,9 @@ class SLSQPScheduler(SurveySimulation):
 
             self.scomp0 = np.sum(comp0*x0) # calculate sum Comp from MIP
             self.t0 = t0 # assign calculated t0
+            self.BIPnumTargs = np.sum(x0)
             self.vprint('BIP sum comp: ' + str(self.scomp0))
+            self.vprint('BIP num targ: ' + str(self.BIPnumTargs))
 
             #Observation num x0=0 @ dMagint=25 is 1501
             #Observation num x0=0 @ dMagint=30 is 1501...
@@ -174,6 +176,8 @@ class SLSQPScheduler(SurveySimulation):
             self.vprint('MSCALAR Execution time: ' + str(MSCALARstop - MSCALARstart))
             comp_epsmax,t_epsmax,x_epsmax = self.inttimesfeps(epsres['x'],Cbs.to('1/d').value, Csps.to('1/d').value)
             self.vprint('MSCALAR sum comp: ' + str(np.sum(comp_epsmax*x_epsmax)))
+            self.MSCALARnumTargs = np.sum(x_epsmax)
+            self.vprint('MSCALAR num targ: ' + str(self.MSCALARnumTargs))
             if np.sum(comp_epsmax*x_epsmax) > self.scomp0:
                 x0 = x_epsmax
                 self.scomp0 = np.sum(comp_epsmax*x_epsmax) 
@@ -214,25 +218,51 @@ class SLSQPScheduler(SurveySimulation):
             self.t0 = ires['x']*u.d
             self.scomp0 = -ires['fun']
             self.vprint('SLSQP sum comp: ' + str(self.scomp0))
+            self.SLSQPnumTargs = self.t0[self.t0.value>1e-10].shape[0]
+            self.vprint('SLSQP num targ: ' + str(self.SLSQPnumTargs))
 
             ##### Merely an example to squash reviewer 1
             initguess = self.t0.value.copy()
-            bounds = [(0,0.99*maxIntTime.to(u.d).value) for i in np.arange(len(sInds))]
+            bounds = [(0,0.8*maxIntTime.to(u.d).value) for i in np.arange(len(sInds))]
             self.constraints = {'type':'ineq',
-                    'fun': lambda x: 0.99*self.maxTime.to(u.d).value - np.sum(x[x*u.d > 0.1*u.s]) - #maxTime less sum of intTimes
+                    'fun': lambda x: 0.8*self.maxTime.to(u.d).value - np.sum(x[x*u.d > 0.1*u.s]) - #maxTime less sum of intTimes
                                      np.sum(x*u.d > 0.1*u.s).astype(float)*self.ohTimeTot.to(u.d).value, # sum of True -> goes to 1 x OHTime
                     'jac':lambda x: np.ones(len(x))*-1.}
             SLSQPstart = time.time()
             ires = minimize(self.objfun, initguess, jac=self.objfun_deriv, args=(sInds,fZ), 
                     constraints=self.constraints, method='SLSQP', bounds=bounds, options={'maxiter':self.maxiter, 'ftol':self.ftol, 'disp': True}) #original method
             SLSQPstop = time.time()
-            self.vprint('SLSQP Execution time: ' + str(SLSQPstop - SLSQPstart))
+            self.vprint('SLSQP Execution time2: ' + str(SLSQPstop - SLSQPstart))
 
             assert ires['success'], "Initial time optimization failed."            
             self.t02 = ires['x']*u.d
             self.scomp02 = -ires['fun']
             self.vprint('SLSQP sum comp2: ' + str(self.scomp02))
+            self.SLSQPnumTargs2 = self.t02[self.t02.value>1e-10].shape[0]
+            self.vprint('SLSQP num targ2: ' + str(self.SLSQPnumTargs2))
             ############################################
+
+            ##### Merely an example to squash reviewer 1
+            initguess = self.t0.value.copy()
+            bounds = [(0,1.3*maxIntTime.to(u.d).value) for i in np.arange(len(sInds))]
+            self.constraints = {'type':'ineq',
+                    'fun': lambda x: 1.3*self.maxTime.to(u.d).value - np.sum(x[x*u.d > 0.1*u.s]) - #maxTime less sum of intTimes
+                                     np.sum(x*u.d > 0.1*u.s).astype(float)*self.ohTimeTot.to(u.d).value, # sum of True -> goes to 1 x OHTime
+                    'jac':lambda x: np.ones(len(x))*-1.}
+            SLSQPstart = time.time()
+            ires = minimize(self.objfun, initguess, jac=self.objfun_deriv, args=(sInds,fZ), 
+                    constraints=self.constraints, method='SLSQP', bounds=bounds, options={'maxiter':self.maxiter, 'ftol':self.ftol, 'disp': True}) #original method
+            SLSQPstop = time.time()
+            self.vprint('SLSQP Execution time3: ' + str(SLSQPstop - SLSQPstart))
+
+            assert ires['success'], "Initial time optimization failed."            
+            self.t03 = ires['x']*u.d
+            self.scomp03 = -ires['fun']
+            self.vprint('SLSQP sum comp3: ' + str(self.scomp03))
+            self.SLSQPnumTargs3 = self.t03[self.t03.value>1e-10].shape[0]
+            self.vprint('SLSQP num targ3: ' + str(self.SLSQPnumTargs3))
+            ############################################
+
 
             if cacheOptTimes:
                 with open(cachefname,'wb') as f:
@@ -300,7 +330,7 @@ class SLSQPScheduler(SurveySimulation):
                 Same size as t
 
         """
-        good = t*u.d >= 0.1*u.s # inds that were not downselected by initial MIP
+        good = t*u.d >= 0.1*u.s#0.1*u.s # inds that were not downselected by initial MIP
 
         comp = self.Completeness.comp_per_intTime(t[good]*u.d, self.TargetList, sInds[good], fZ[good], 
                 self.ZodiacalLight.fEZ0, self.WAint[sInds][good], self.detmode)
