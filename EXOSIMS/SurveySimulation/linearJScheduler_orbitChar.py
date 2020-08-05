@@ -72,10 +72,10 @@ class linearJScheduler_orbitChar(SurveySimulation):
         self.ignore_stars = []                                       # list of stars that have already been chard
         self.no_dets = np.ones(self.TargetList.nStars, dtype=bool)
         self.promoted_stars = []                                     # actually just a list of characterized stars
-        self.promotable_stars = self.known_rocky
-
-        self.n_det_remove = n_det_remove                        # Minimum number of visits with no detections required to filter off star
-        self.n_det_min = n_det_min                              # Minimum number of detections required for promotion
+        self.promotable_stars = self.known_rocky                     # In the  cases of prior knowledge (EPRV or omni), the target is put into the target pool for characterization immediately
+                                        # if omni we need no detections - vari - fix this, earths_only = True
+        self.n_det_remove = n_det_remove                            # Minimum number of visits with no detections required to filter off star
+        self.n_det_min = n_det_min                                  # Minimum number of detections required for promotion
         self.max_successful_dets = max_successful_dets
         self.det_only = det_only
 
@@ -83,6 +83,8 @@ class linearJScheduler_orbitChar(SurveySimulation):
         if TL.earths_only:
             char_mode = list(filter(lambda mode: 'spec' in mode['inst']['name'], OS.observingModes))[0]
 
+            # if omnicient mode - no detections
+            
             # check for earths around the available stars
             for sInd in np.arange(TL.nStars):
                 pInds = np.where(SU.plan2star == sInd)[0]
@@ -162,7 +164,10 @@ class linearJScheduler_orbitChar(SurveySimulation):
                 detected = np.array([])
                 FA = False
 
-                if sInd not in self.promotable_stars or (sInd in self.promotable_stars and sInd in self.promoted_stars):
+                # promotable stars 
+                if sInd not in self.promotable_stars \
+                    or (sInd in self.promotable_stars and sInd in self.promoted_stars) \
+                    or not self.max_successful_dets == 0:
                     # PERFORM DETECTION and populate revisit list attribute
                     detected, det_fZ, det_systemParams, det_SNR, FA = \
                             self.observation_detection(sInd, det_intTime.copy(), det_mode)
@@ -322,7 +327,6 @@ class linearJScheduler_orbitChar(SurveySimulation):
                     + "Results stored in SurveySimulation.DRM (Design Reference Mission)."
             self.logger.info(log_end)
             self.vprint(log_end)
-
 
     def next_target(self, old_sInd, mode, char_mode):
         """Finds index of next target star and calculates its integration time.
@@ -556,11 +560,13 @@ class linearJScheduler_orbitChar(SurveySimulation):
         no_dets = np.logical_and((self.starVisits[detectable_sInds] > self.n_det_remove), (self.sInd_detcounts[detectable_sInds] == 0))
         detectable_sInds = detectable_sInds[np.where(np.invert(no_dets))[0]]
 
-        max_dets = np.where(self.sInd_detcounts[sInds] < self.max_successful_dets)[0]
-        sInds = sInds[max_dets]
+        # if max == 0 the code removes all indices here
+        if self.max_successful_dets >= 1:
+            max_dets = np.where(self.sInd_detcounts[sInds] < self.max_successful_dets)[0]
+            sInds = sInds[max_dets]
 
-        max_dets = np.where(self.sInd_detcounts[detectable_sInds] < self.max_successful_dets)[0]
-        detectable_sInds = detectable_sInds[max_dets]
+            max_dets = np.where(self.sInd_detcounts[detectable_sInds] < self.max_successful_dets)[0]
+            detectable_sInds = detectable_sInds[max_dets]
 
         # find stars that are available for detection revisits
         detectable_sInds_tmp = []
@@ -602,7 +608,6 @@ class linearJScheduler_orbitChar(SurveySimulation):
             return DRM, sInd, intTime, slewTimes[sInd]
 
         return DRM, sInd, intTime, waitTime
-
 
     def choose_next_target(self, old_sInd, sInds, slewTimes, intTimes):
         """Choose next target based on truncated depth first search 
@@ -734,7 +739,6 @@ class linearJScheduler_orbitChar(SurveySimulation):
 
         return sInds
 
-
     def scheduleRevisit(self, sInd, smin, det, pInds):
         """A Helper Method for scheduling revisits after observation detection
         Args:
@@ -759,7 +763,6 @@ class linearJScheduler_orbitChar(SurveySimulation):
                 self.starRevisit = np.vstack((self.starRevisit, revisit))
             else:
                 self.starRevisit[revInd,1] = revisit[1]#over
-
 
     def observation_characterization(self, sInd, mode):
         """Finds if characterizations are possible and relevant information
