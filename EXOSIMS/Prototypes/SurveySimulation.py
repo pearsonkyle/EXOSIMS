@@ -298,8 +298,23 @@ class SurveySimulation(object):
                     "Input WAint array doesn't match number of target stars."
             self._outspec['WAint'] = self.WAint.to('arcsec').value
 
+        #if requested, rescale based on luminosities and mode limits
+        self.dMagLim_offset = dMagLim_offset
+        if scaleWAdMag:
+            for i,Lstar in enumerate(TL.L):
+
+                # change Lstar to estimated value? 
+                EEID = ((np.sqrt(Lstar)*u.AU/TL.dist[i]).decompose()*u.rad).to(u.arcsec)
+                if EEID < mode['IWA']:
+                    EEID = mode['IWA']*(1.+1e-14)
+                elif EEID > mode['OWA']:
+                    EEID = mode['OWA']*(1.-1e-14)
+
+                self.WAint[i] = EEID
+        self._outspec['scaleWAdMag'] = scaleWAdMag
+
         # work out limiting dMag for all observing modes
-        dMagLimits = {}
+        dMaglimitMin = 100
         for mode in OS.observingModes:
             core_contrast = mode['syst']['core_contrast'](mode['syst']['lam'], self.WAint[0])
 
@@ -332,31 +347,16 @@ class SurveySimulation(object):
             PCEff = mode['inst']['PCeff']
             dMaglimit = -2.5 * np.log10(Fpp * contrast_stability * SNR / PCEff)
             self.vprint("Limiting delta magnitude for mode syst: {} inst: {} is {}".format(mode['systName'], mode['instName'], dMaglimit))
-            dMagLimits[mode['systName']] = dMaglimit 
-        
-        #if requested, rescale based on luminosities and mode limits
-        self.dMagLim_offset = dMagLim_offset
+            dMaglimitMin = min(dMaglimit, dMaglimitMin)
+
         if scaleWAdMag:
             for i,Lstar in enumerate(TL.L):
                 if (Lstar < 1.6) and (Lstar > 0.):
-                    try:
-                        self.dMagint[i] = dMagLimits['Occulter_testcase'] - self.dMagLim_offset + 2.5 * np.log10(Lstar)
-                    except:
-                        self.dMagint[i] = Comp.dMagLim - self.dMagLim_offset + 2.5 * np.log10(Lstar)
+                    lstar_est = 10**( (dMaglimitMin - Comp.dMagLim + dMagLim_offset)/2.5 )
+                    self.dMagint[i] = dMaglimitMin - self.dMagLim_offset + 2.5 * np.log10(lstar_est)
+                    #self.dMagint[i] = Comp.dMagLim - self.dMagLim_offset + 2.5 * np.log10(Lstar)
                 else:
-                    try:
-                        self.dMagint[i] = dMagLimits['Occulter_testcase']
-                    except:
-                        self.dMagint[i] = Comp.dMagLim
-                
-                EEID = ((np.sqrt(Lstar)*u.AU/TL.dist[i]).decompose()*u.rad).to(u.arcsec)
-                if EEID < mode['IWA']:
-                    EEID = mode['IWA']*(1.+1e-14)
-                elif EEID > mode['OWA']:
-                    EEID = mode['OWA']*(1.-1e-14)
-
-                self.WAint[i] = EEID
-        self._outspec['scaleWAdMag'] = scaleWAdMag
+                    self.dMagint[i] = Comp.dMagLim
 
         # initialize arrays updated in run_sim()
         self.initializeStorageArrays()
