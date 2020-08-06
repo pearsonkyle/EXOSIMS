@@ -166,8 +166,7 @@ class linearJScheduler_orbitChar(SurveySimulation):
 
                 # promotable stars 
                 if sInd not in self.promotable_stars \
-                    or (sInd in self.promotable_stars and sInd in self.promoted_stars) \
-                    or not self.max_successful_dets == 0:
+                    or (sInd in self.promotable_stars and sInd in self.promoted_stars):
                     # PERFORM DETECTION and populate revisit list attribute
                     detected, det_fZ, det_systemParams, det_SNR, FA = \
                             self.observation_detection(sInd, det_intTime.copy(), det_mode)
@@ -565,8 +564,8 @@ class linearJScheduler_orbitChar(SurveySimulation):
             max_dets = np.where(self.sInd_detcounts[sInds] < self.max_successful_dets)[0]
             sInds = sInds[max_dets]
 
-            max_dets = np.where(self.sInd_detcounts[detectable_sInds] < self.max_successful_dets)[0]
-            detectable_sInds = detectable_sInds[max_dets]
+        max_dets = np.where(self.sInd_detcounts[detectable_sInds] < self.max_successful_dets)[0]
+        detectable_sInds = detectable_sInds[max_dets]
 
         # find stars that are available for detection revisits
         detectable_sInds_tmp = []
