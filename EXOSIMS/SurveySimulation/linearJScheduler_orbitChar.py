@@ -559,11 +559,11 @@ class linearJScheduler_orbitChar(SurveySimulation):
         no_dets = np.logical_and((self.starVisits[detectable_sInds] > self.n_det_remove), (self.sInd_detcounts[detectable_sInds] == 0))
         detectable_sInds = detectable_sInds[np.where(np.invert(no_dets))[0]]
 
-        # if max == 0 the code removes all indices here
         if self.max_successful_dets >= 1:
             max_dets = np.where(self.sInd_detcounts[sInds] < self.max_successful_dets)[0]
             sInds = sInds[max_dets]
 
+        # if max == 0 the code removes all indices here
         max_dets = np.where(self.sInd_detcounts[detectable_sInds] < self.max_successful_dets)[0]
         detectable_sInds = detectable_sInds[max_dets]
 
