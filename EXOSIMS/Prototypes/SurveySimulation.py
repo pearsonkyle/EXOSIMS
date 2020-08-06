@@ -350,10 +350,13 @@ class SurveySimulation(object):
             dMaglimitMin = min(dMaglimit, dMaglimitMin)
 
         if scaleWAdMag:
+            Lstar_est = 10**( (dMaglimitMin - Comp.dMagLim + dMagLim_offset)/2.5 )
             for i,Lstar in enumerate(TL.L):
-                if (Lstar < 1.6) and (Lstar > 0.):
-                    lstar_est = 10**( (dMaglimitMin - Comp.dMagLim + dMagLim_offset)/2.5 )
-                    self.dMagint[i] = dMaglimitMin - self.dMagLim_offset + 2.5 * np.log10(lstar_est)
+                if (Lstar < Lstar_est) and (Lstar > 0.):
+
+                    self.dMagint[i] = dMaglimitMin - self.dMagLim_offset + 2.5 * np.log10(Lstar)
+
+                    # original 
                     #self.dMagint[i] = Comp.dMagLim - self.dMagLim_offset + 2.5 * np.log10(Lstar)
                 else:
                     self.dMagint[i] = Comp.dMagLim
