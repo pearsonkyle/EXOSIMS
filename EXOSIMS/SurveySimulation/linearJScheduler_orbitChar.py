@@ -68,11 +68,11 @@ class linearJScheduler_orbitChar(SurveySimulation):
 
         self.sInd_detcounts = np.zeros(TL.nStars, dtype=int)        # Number of detections by star index
         self.sInd_dettimes = {}
-        self.det_prefer = []                                         # list of star indicies to be given detection preference
-        self.ignore_stars = []                                       # list of stars that have already been chard
+        self.det_prefer = []                                        # list of star indicies to be given detection preference
+        self.ignore_stars = []                                      # list of stars that have already been chard
         self.no_dets = np.ones(self.TargetList.nStars, dtype=bool)
-        self.promoted_stars = []                                     # actually just a list of characterized stars
-        self.promotable_stars = self.known_rocky                     # In the  cases of prior knowledge (EPRV or omni), the target is put into the target pool for characterization immediately
+        self.promoted_stars = []                                    # actually just a list of characterized stars
+        self.promotable_stars = self.known_rocky                    # In the  cases of prior knowledge (EPRV or omni), the target is put into the target pool for characterization immediately
                                         # if omni we need no detections - vari - fix this, earths_only = True
         self.n_det_remove = n_det_remove                            # Minimum number of visits with no detections required to filter off star
         self.n_det_min = n_det_min                                  # Minimum number of detections required for promotion
@@ -82,8 +82,6 @@ class linearJScheduler_orbitChar(SurveySimulation):
         occ_sInds_with_earths = []
         if TL.earths_only:
             char_mode = list(filter(lambda mode: 'spec' in mode['inst']['name'], OS.observingModes))[0]
-
-            # if omnicient mode - no detections
             
             # check for earths around the available stars
             for sInd in np.arange(TL.nStars):

@@ -303,7 +303,6 @@ class SurveySimulation(object):
         if scaleWAdMag:
             for i,Lstar in enumerate(TL.L):
 
-                # change Lstar to estimated value? 
                 EEID = ((np.sqrt(Lstar)*u.AU/TL.dist[i]).decompose()*u.rad).to(u.arcsec)
                 if EEID < mode['IWA']:
                     EEID = mode['IWA']*(1.+1e-14)
