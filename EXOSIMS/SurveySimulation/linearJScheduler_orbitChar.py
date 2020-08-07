@@ -90,11 +90,11 @@ class linearJScheduler_orbitChar(SurveySimulation):
                 if np.any(pinds_earthlike):
                     self.known_earths = np.union1d(self.known_earths, pInds[pinds_earthlike]).astype(int)
                     occ_sInds_with_earths.append(sInd)
+                
             self.promotable_stars = np.union1d(self.promotable_stars, occ_sInds_with_earths).astype(int)
 
         if self.find_known_RV or TL.earths_only:
             TL.comp0[self.promotable_stars] = 1.0
-
 
     def run_sim(self):
         """Performs the survey simulation 
@@ -164,7 +164,8 @@ class linearJScheduler_orbitChar(SurveySimulation):
 
                 # promotable stars 
                 if sInd not in self.promotable_stars \
-                    or (sInd in self.promotable_stars and sInd in self.promoted_stars):
+                    or (sInd in self.promotable_stars and sInd in self.promoted_stars) \
+                    and self.max_successful_dets != 0:
                     # PERFORM DETECTION and populate revisit list attribute
                     detected, det_fZ, det_systemParams, det_SNR, FA = \
                             self.observation_detection(sInd, det_intTime.copy(), det_mode)
